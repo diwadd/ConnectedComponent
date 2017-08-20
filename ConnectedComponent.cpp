@@ -2,6 +2,8 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <cmath>
+#include <algorithm>
 #define FOR(i, N) for(int i = 0; i < N; i++)
 
 #define NUMBER_OF_EDGES_PER_VERTEX 4
@@ -427,28 +429,9 @@ void print_vertex_information(Vertex *v) {
 }
 
 
-void make_set(Vertex &v) {
-    v.m_p = &v;
-    v.m_r = 0;
-}
-
-
 void make_set(Vertex* v) {
     v->m_p = v;
     v->m_r = 0;
-}
-
-
-void link(Vertex &x, Vertex &y) {
-
-    if (x.m_r > y.m_r)
-        y.m_p = &x;
-    else {
-        x.m_p = &y;
-        if (x.m_r == y.m_r)
-            y.m_r = y.m_r + 1;    
-    }
-
 }
 
 
@@ -464,21 +447,6 @@ void link(Vertex* x, Vertex* y) {
 
 }
 
-/*
-def link(x, y):
-    if x.r > y.r:
-        y.p = x
-    else:
-        x.p = y
-        if x.r == y.r:
-            y.r = y.r + 1
-*/
-
-Vertex* find_set(Vertex &x) {
-    if (x.m_key != x.m_p->m_key)
-        x.m_p = find_set(*x.m_p);
-    return x.m_p;
-}
 
 Vertex* find_set(Vertex* x) {
     if (x != x->m_p)
@@ -486,22 +454,12 @@ Vertex* find_set(Vertex* x) {
     return x->m_p;
 }
 
-/*
-def find_set(x):
-    if x != x.p:
-        x.p = find_set(x.p)
-    return x.p
-*/
 
 // Union id the disjoint set data structure.
 void union_dsds(Vertex *x, Vertex *y) {
     link(find_set(x), find_set(y));
 }
 
-/*
-def union(x, y):
-    link( find_set(x), find_set(y) )
-*/
 
 void connected_components(vx &vertex_array) {
 
@@ -537,17 +495,6 @@ void connected_components(vx &vertex_array) {
     }
 }
 
-/*
-def connected_components(g):
-    
-    for i in range(g.nv):
-        make_set(g.vertex_list[i])
-    for i in range(g.ne):
-        e = g.edge_list[i]
-
-        if find_set(g.vertex_list[e.u]) != find_set(g.vertex_list[e.v]):
-            union(g.vertex_list[e.u], g.vertex_list[e.v])
-*/
 
 bool same_component(Vertex *u, Vertex *v) {
 
@@ -560,14 +507,42 @@ bool same_component(Vertex *u, Vertex *v) {
         return false;
 }
 
-/*
-def same_component(u, v):
 
-    if find_set(u) == find_set(v):
-        return True
-    else:
-        return False
-*/
+int count_score(vx &vertex_array) {
+
+    int n_v = vertex_array.size();
+    vi sum_array(n_v, 0);
+    vi count_array(n_v, 0);
+
+    for(int i = 0; i < n_v; i++) {
+        Vertex* p = find_set(&vertex_array[i]);
+
+        sum_array[p->m_key] = sum_array[p->m_key] + vertex_array[i].m_val;
+        count_array[p->m_key] = count_array[p->m_key] + 1;
+    }
+
+    vector<double> scores(n_v, 0.0);
+
+    //cerr << "Sums: " << endl;
+    //for(int i = 0; i < n_v; i++) {
+    //    fprintf(stderr, "%3d ", sum_array[i]);
+    //}
+    //cerr << endl;
+
+    //cerr << "Counts: " << endl;
+    for(int i = 0; i < n_v; i++) {
+        scores[i] = (double)sum_array[i]*sqrt((double)count_array[i]);
+        //fprintf(stderr, "%3d ", count_array[i]);
+    }
+    //cerr << endl;
+
+
+    double s = (*max_element(scores.begin(), scores.end()));
+
+    return s;
+
+
+}
 
 
 class ConnectedComponent {
@@ -582,7 +557,7 @@ public:
                              S);
 
         cerr << "Original matrix: " << endl;
-        print_matrix(matrix);
+        //print_matrix(matrix);
 
         vx vertex_array;
         vvxp pointer_vertex_matrix(S, vxp(S, nullptr));
@@ -597,7 +572,7 @@ public:
         print_vertex_information(pointer_vertex_matrix[iv][jv]);
         cerr << endl;
 
-        vi perm = {1, 0, 2, 3, 4, 8, 6, 7, 5, 9};
+        vi perm = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         //vvxp pointer_vertex_matrix_permuted(S, vxp(S, nullptr));
         //permute_pointer_vertex_matrix(pointer_vertex_matrix, 
         //                              pointer_vertex_matrix_permuted, 
@@ -613,15 +588,15 @@ public:
         cerr << "Small permutation (pointer matrix): " << endl;
         int pi = 0;
         int pj = 1;
-        permute_pointer_vertex_matrix(pointer_vertex_matrix, pi, pj);
-        set_edges(pointer_vertex_matrix, pi, pj);
+        //permute_pointer_vertex_matrix(pointer_vertex_matrix, pi, pj);
+        //set_edges(pointer_vertex_matrix, pi, pj);
         pi = 5;
         pj = 8;
-        permute_pointer_vertex_matrix(pointer_vertex_matrix, pi, pj);
-        set_edges(pointer_vertex_matrix, pi, pj);
+        //permute_pointer_vertex_matrix(pointer_vertex_matrix, pi, pj);
+        //set_edges(pointer_vertex_matrix, pi, pj);
         //set_edges(pointer_vertex_matrix);
 
-        print_matrix(pointer_vertex_matrix);
+        //print_matrix(pointer_vertex_matrix);
 
         //iv = 1; jv = 1;
         //print_vertex_information(pointer_vertex_matrix[iv][jv]);
@@ -645,6 +620,8 @@ public:
         Vertex* v = pointer_vertex_matrix[9][0];
 
         cerr << "The vertexes are the same subgraph: " << same_component(u, v) << endl;
+        double s = count_score(vertex_array);
+        fprintf(stderr, "Internal score: %5.5f\n", s);
 
         vector<int> ret(S);
         for (int i = 0; i < S; ++i) {
