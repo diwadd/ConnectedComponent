@@ -5,10 +5,13 @@
 #define FOR(i, N) for(int i = 0; i < N; i++)
 
 #define NUMBER_OF_EDGES_PER_VERTEX 4
-#define DOWN_NEIGHBOUR 0
-#define RIGHT_NEIGHBOUR 1
-#define UP_NEIGHBOUR 2
-#define LEFT_NEIGHBOUR 3
+
+const int i_shifts[NUMBER_OF_EDGES_PER_VERTEX] = {1, 0, -1,  0};
+const int j_shifts[NUMBER_OF_EDGES_PER_VERTEX] = {0, 1,  0, -1};
+#define DOWN_NEIGHBOUR  0  // Corresponds to shift [ 1,  0]
+#define RIGHT_NEIGHBOUR 1  // Corresponds to shift [ 0,  1]
+#define UP_NEIGHBOUR    2  // Corresponds to shift [-1,  0]
+#define LEFT_NEIGHBOUR  3  // Corresponds to shift [ 0, -1]
 
 using namespace std;
 
@@ -241,11 +244,73 @@ void initialise_vertex_matrix(vvi &matrix,
     }
 }
 
+void set_neighbours(int &i, int &j, int &S, vvxp &pointer_vertex_matrix) {
+
+    for(int k = 0; k < NUMBER_OF_EDGES_PER_VERTEX; k++) {
+
+        int i_new = i + i_shifts[k];
+        int j_new = j + j_shifts[k];
+
+        if (i_new < 0 || i_new >= S)
+            continue;
+
+        if (j_new < 0 || j_new >= S)
+            continue;
+
+        //cerr << "S: " << S << " i_new: " << i_new << " j_new: " << j_new << endl;
+
+        // Check if the potential neighbour is a vertex?
+        if (pointer_vertex_matrix[i_new][j_new] == nullptr)
+            continue;
+
+        if (k == DOWN_NEIGHBOUR)
+            pointer_vertex_matrix[i][j]->m_de = pointer_vertex_matrix[i_new][j_new];
+        else if (k == RIGHT_NEIGHBOUR) // right neighbours
+            pointer_vertex_matrix[i][j]->m_re = pointer_vertex_matrix[i_new][j_new];
+        else if (k == UP_NEIGHBOUR) // down neighbours
+            pointer_vertex_matrix[i][j]->m_ue = pointer_vertex_matrix[i_new][j_new];
+        else if (k == LEFT_NEIGHBOUR) // left neighbours
+            pointer_vertex_matrix[i][j]->m_le = pointer_vertex_matrix[i_new][j_new];
+        else {}
+
+    }
+
+}
+
+
+void set_edges(vvxp &pointer_vertex_matrix,
+               int &pi,
+               int &pj) {
+
+
+    int S = pointer_vertex_matrix.size();
+    vector<int> rc = {pi, pj};
+
+    for(int i = 0; i < rc.size(); i ++) {
+
+        int rc_index = rc[i]; // Index of the row/column that we are changing.
+        for(int j = 0; j < S; j++) {
+
+            if (pointer_vertex_matrix[rc_index][j] == nullptr)
+                continue;
+            
+            pointer_vertex_matrix[rc_index][j]->m_de = nullptr;
+            pointer_vertex_matrix[rc_index][j]->m_re = nullptr;
+            pointer_vertex_matrix[rc_index][j]->m_ue = nullptr;
+            pointer_vertex_matrix[rc_index][j]->m_le = nullptr;
+
+            set_neighbours(rc_index, j, S, pointer_vertex_matrix);
+
+
+
+        }
+    }
+
+
+}
+
 
 void set_edges(vvxp &pointer_vertex_matrix) {
-
-    int i_shifts[NUMBER_OF_EDGES_PER_VERTEX] = {1, 0, -1,  0};
-    int j_shifts[NUMBER_OF_EDGES_PER_VERTEX] = {0, 1,  0, -1};
 
     int S = pointer_vertex_matrix.size();
     for(int i = 0; i < S; i++) {
@@ -262,6 +327,8 @@ void set_edges(vvxp &pointer_vertex_matrix) {
             pointer_vertex_matrix[i][j]->m_ue = nullptr;
             pointer_vertex_matrix[i][j]->m_le = nullptr;
 
+            set_neighbours(i, j, S, pointer_vertex_matrix);
+            /*
             for(int k = 0; k < NUMBER_OF_EDGES_PER_VERTEX; k++) {
 
                 int i_new = i + i_shifts[k];
@@ -290,19 +357,11 @@ void set_edges(vvxp &pointer_vertex_matrix) {
                 else {}
 
             }
+            */
+
         }
     }
 
-}
-
-
-void set_pointer_vertex_matrix_to_vertex_matrix(vvx &vertex_matrix,
-                                                vvxp &pointer_vertex_matrix) {
-
-    int S = vertex_matrix.size();
-    for(int i = 0; i < S; i++)
-        for(int j = 0; j < S; j++)
-            pointer_vertex_matrix[i][j] = &vertex_matrix[i][j];
 }
 
 
@@ -336,7 +395,6 @@ public:
 
         // S x S matrix
         vvi matrix(S, vi(S, 0));
-        vvi matrix_p(S, vi(S, 0));
         array_form_to_matrix(matrix_array_form,
                              matrix,
                              S);
@@ -344,49 +402,19 @@ public:
         cerr << "Original matrix: " << endl;
         print_matrix(matrix);
 
-
-        vvx vertex_matrix(S, vx(S, Vertex()));
-        initialise_vertex_matrix(matrix, 
-                                 vertex_matrix);
-
-
         vx vertex_array;
         vvxp pointer_vertex_matrix(S, vxp(S, nullptr));
-        //set_pointer_vertex_matrix_to_vertex_matrix(vertex_matrix, pointer_vertex_matrix);
         initialise_vertex_array(matrix,
                                 vertex_array,
                                 pointer_vertex_matrix);
         set_edges(pointer_vertex_matrix);
 
-        int iv = 0;
-        int jv = 0;
-        /*
-        cerr << "First vertex example:" << endl;
-        cerr << pointer_vertex_matrix[iv][jv] << endl;
-        cerr << *pointer_vertex_matrix[iv][jv] << endl;
-        cerr << &pointer_vertex_matrix[iv][jv] << endl;
-        cerr << &(*pointer_vertex_matrix[iv][jv]) << endl;
-        cerr << endl;
-
-        iv = 0;
-        jv = 1;
-        cerr << "Second vertex example:" << endl;
-        cerr << pointer_vertex_matrix[iv][jv] << endl;
-        cerr << *pointer_vertex_matrix[iv][jv] << endl;
-        cerr << &pointer_vertex_matrix[iv][jv] << endl;
-        cerr << &(*pointer_vertex_matrix[iv][jv]) << endl;
-        cerr << endl;
-
-        print_vertex_information(pointer_vertex_matrix[iv][jv]);
-        cerr << endl;
-        */
-
-        iv = 1;
-        jv = 1;
+        int iv = 1;
+        int jv = 4;
         print_vertex_information(pointer_vertex_matrix[iv][jv]);
         cerr << endl;
 
-        vi perm = {1, 0, 2, 3, 4, 5, 6, 7, 8, 9};
+        vi perm = {1, 0, 2, 3, 4, 8, 6, 7, 5, 9};
         vvxp pointer_vertex_matrix_permuted(S, vxp(S, nullptr));
         permute_pointer_vertex_matrix(pointer_vertex_matrix, 
                                       pointer_vertex_matrix_permuted, 
@@ -395,7 +423,6 @@ public:
 
         cerr << "Permutation (pointer matrix): " << endl;        
         print_matrix(pointer_vertex_matrix_permuted);
-
         print_vertex_information(pointer_vertex_matrix_permuted[iv][jv]);
         cerr << endl;
 
@@ -404,11 +431,13 @@ public:
         int pi = 0;
         int pj = 1;
         permute_pointer_vertex_matrix(pointer_vertex_matrix, pi, pj);
-        print_matrix(pointer_vertex_matrix);
+        pi = 5;
+        pj = 8;
+        permute_pointer_vertex_matrix(pointer_vertex_matrix, pi, pj);
+        set_edges(pointer_vertex_matrix);
 
-        //permute_matrix(matrix_p, matrix,perm);
-        //cerr << "Permutation: " << endl;        
-        //print_matrix(matrix_p);
+        print_matrix(pointer_vertex_matrix);
+        print_vertex_information(pointer_vertex_matrix_permuted[iv][jv]);
 
 
         vector<int> ret(S);
