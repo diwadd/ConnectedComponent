@@ -4,6 +4,7 @@
 #include <string>
 #include <cmath>
 #include <algorithm>
+#include <random>
 #define FOR(i, N) for(int i = 0; i < N; i++)
 
 #define NUMBER_OF_EDGES_PER_VERTEX 4
@@ -99,6 +100,15 @@ std::ostream& operator<<(std::ostream& os, const Vertex& v) {
 
     os << s;
     return os;
+}
+
+
+void print_vector(vi &v) {
+
+    for(int i = 0; i < v.size(); i++)
+        cerr << v[i]  << " ";
+    cerr << endl;
+
 }
 
 
@@ -510,10 +520,13 @@ bool same_component(Vertex *u, Vertex *v) {
 
 double count_score(vx &vertex_array) {
 
+    //cerr << "In count_score" << endl;
+
     int n_v = vertex_array.size();
     vi sum_array(n_v, 0);
     vi count_array(n_v, 0);
 
+    //cerr << "Looping vertexes." << endl;
     for(int i = 0; i < n_v; i++) {
         Vertex* p = find_set(&vertex_array[i]);
 
@@ -521,10 +534,12 @@ double count_score(vx &vertex_array) {
         count_array[p->m_key] = count_array[p->m_key] + 1;
     }
 
+    //cerr << "Getting vertex scores." << endl;
     vector<double> scores(n_v, 0.0);
     for(int i = 0; i < n_v; i++)
         scores[i] = (double)sum_array[i]*sqrt((double)count_array[i]);
 
+    //cerr << " Finding max score." << endl;
     double s = (*max_element(scores.begin(), scores.end()));
 
     return s;
@@ -532,10 +547,129 @@ double count_score(vx &vertex_array) {
 }
 
 
+void apply_n_random_permutations(int &n,
+                                 vvxp &pointer_vertex_matrix,
+                                 vi &final_perm) {
+
+    int S = pointer_vertex_matrix.size();   
+    random_device rd;
+    mt19937 gen(rd());
+
+    uniform_int_distribution<> uni_int(0, S - 1);
+
+    for(int i = 0; i < n; i++) {
+        int pi = uni_int(gen);
+        int pj = uni_int(gen);
+
+        if (pi == pj)
+            continue;
+
+        permute_pointer_vertex_matrix(pointer_vertex_matrix, pi, pj);
+        set_edges(pointer_vertex_matrix);
+
+        int t = final_perm[pi];
+        final_perm[pi] = final_perm[pj];
+        final_perm[pj] = t;
+
+    }
+
+}
+
+
+void metropolis(double &T,
+                double &alpha,
+                vx &vertex_array,
+                vvxp &pointer_vertex_matrix,
+                vi &final_perm) {
+
+    cerr << "Running Monte Carlo with Metropolis..." << endl;
+
+    int S = pointer_vertex_matrix.size();   
+    random_device rd;
+    mt19937 gen(rd());
+
+    double min_cost = numeric_limits<double>::max();
+
+    vi current_perm(S, 0);
+
+    for(int i = 0; i < S; i++)
+        current_perm[i] = i;
+
+    uniform_int_distribution<> uni_int(0, S - 1);
+    uniform_real_distribution<double> uni_real(0.0, 1.0);
+
+    while(T > 1.0) {
+
+        //cerr << "While beginning." << endl;
+        //cerr << "Counting score" << endl;
+        connected_components(vertex_array);
+        double cost_1 = -count_score(vertex_array);
+        //cerr << "cost_1: " << cost_1 << endl;
+        //cerr << "Score counted" << endl;
+
+        int pi = uni_int(gen);
+        int pj = uni_int(gen);
+
+        if (pi == pj)
+            continue;
+        
+        // Move pointer_vertex_matrix to new state.
+        //cerr << "New state generated." << endl;
+        permute_pointer_vertex_matrix(pointer_vertex_matrix, pi, pj);
+        set_edges(pointer_vertex_matrix);
+        //cerr << "New state generated." << endl;
+
+        connected_components(vertex_array);
+        double cost_2 = -count_score(vertex_array);
+        //cerr << "cost_2: " << cost_2 << endl;
+
+        // Accept new state
+        if (cost_2 > cost_1) {
+            int t = current_perm[pi];
+            current_perm[pi] = current_perm[pj];
+            current_perm[pj] = t;
+
+            if (min_cost > cost_2) {
+                min_cost = cost_2;
+                final_perm = current_perm;
+            }
+
+        // Accept new state with probability exp( -(cost_2 - cost_1)/T ).
+        } else if ( uni_real(gen) < exp( -(cost_2 - cost_1)/T ) ) {
+            int t = current_perm[pi];
+            current_perm[pi] = current_perm[pj];
+            current_perm[pj] = t;
+
+            if (min_cost > cost_2) {
+                min_cost = cost_2;
+                final_perm = current_perm;
+            }
+        // Reject new state.
+        } else {
+            permute_pointer_vertex_matrix(pointer_vertex_matrix, pj, pi);
+            set_edges(pointer_vertex_matrix);
+        }
+
+        T = T*alpha;
+
+
+    }
+
+
+}
+
+
 class ConnectedComponent {
 public:
     vector<int> permute(vector<int> matrix_array_form) {
+
         int S = (int)sqrt(matrix_array_form.size());
+        vi final_perm(S, 0);
+
+        for(int i = 0; i < S; i++)
+            final_perm[i] = i;
+
+        //print_vector(final_perm);
 
         // S x S matrix
         vvi matrix(S, vi(S, 0));
@@ -548,11 +682,21 @@ public:
 
         vx vertex_array;
         vvxp pointer_vertex_matrix(S, vxp(S, nullptr));
+        //vvxp pointer_vertex_matrix_support(S, vxp(S, nullptr));
         initialise_vertex_array(matrix,
                                 vertex_array,
                                 pointer_vertex_matrix);
+        //initialise_vertex_array(matrix,
+        //                        vertex_array,
+        //                        pointer_vertex_matrix_support);
         set_edges(pointer_vertex_matrix);
+        //set_edges(pointer_vertex_matrix_support);
 
+        cerr << "pointer_vertex_matrix" << endl;
+        //print_matrix(pointer_vertex_matrix);
+
+        //cerr << "pointer_vertex_matrix_support" << endl;
+        //print_matrix(pointer_vertex_matrix_support);
 
         int iv = 1;
         int jv = 5;
@@ -573,12 +717,12 @@ public:
 
 
         cerr << "Small permutation (pointer matrix): " << endl;
-        int pi = 0;
-        int pj = 1;
+        //int pi = 0;
+        //int pj = 1;
         //permute_pointer_vertex_matrix(pointer_vertex_matrix, pi, pj);
         //set_edges(pointer_vertex_matrix, pi, pj);
-        pi = 5;
-        pj = 8;
+        //pi = 5;
+        //pj = 8;
         //permute_pointer_vertex_matrix(pointer_vertex_matrix, pi, pj);
         //set_edges(pointer_vertex_matrix, pi, pj);
         //set_edges(pointer_vertex_matrix);
@@ -597,16 +741,63 @@ public:
         //iv = 1; jv = 5;
         //print_vertex_information(pointer_vertex_matrix[iv][jv]);
 
+        //int n = 10;
+        //apply_n_random_permutations(n, pointer_vertex_matrix, final_perm);
+        //print_vector(final_perm);
 
-        cerr << &vertex_array[0] << endl;
-        cerr << vertex_array[0].m_p << endl;
+        //cerr << "pointer_vertex_matrix after apply_n_random_permutations" << endl;
+        //print_matrix(pointer_vertex_matrix);
+
+        //cerr << "pointer_vertex_matrix_support" << endl;
+        //print_matrix(pointer_vertex_matrix_support);
+
+        //vvxp pointer_vertex_matrix_permuted(S, vxp(S, nullptr));
+        //permute_pointer_vertex_matrix(pointer_vertex_matrix_support, 
+        //                              pointer_vertex_matrix_permuted, 
+        //                              final_perm);
+
+        //cerr << "pointer_vertex_matrix_permuted" << endl;
+        //print_matrix(pointer_vertex_matrix_permuted);
+        
+
+        double T = 100.0;
+        double alpha = 0.9;
+        metropolis(T,
+                   alpha,
+                   vertex_array,
+                   pointer_vertex_matrix,
+                   final_perm);
+
+
+        //cerr << &vertex_array[0] << endl;
+        //cerr << vertex_array[0].m_p << endl;
+        //connected_components(vertex_array);
+        //cerr << vertex_array[0].m_p << endl;
+
+        //Vertex* u = pointer_vertex_matrix[7][0];
+        //Vertex* v = pointer_vertex_matrix[9][0];
+
+        vvxp pointer_vertex_matrix_max_score(S, vxp(S, nullptr));
+        initialise_vertex_array(matrix,
+                                vertex_array,
+                                pointer_vertex_matrix_max_score);
+        set_edges(pointer_vertex_matrix_max_score);
+
+        vvxp pointer_vertex_matrix_support(S, vxp(S, nullptr));
+        initialise_vertex_array(matrix,
+                                vertex_array,
+                                pointer_vertex_matrix_support);
+        set_edges(pointer_vertex_matrix_support);
+
+
+        permute_pointer_vertex_matrix(pointer_vertex_matrix_support, 
+                                      pointer_vertex_matrix_max_score, 
+                                      final_perm);
+        set_edges(pointer_vertex_matrix_max_score);
+
         connected_components(vertex_array);
-        cerr << vertex_array[0].m_p << endl;
 
-        Vertex* u = pointer_vertex_matrix[7][0];
-        Vertex* v = pointer_vertex_matrix[9][0];
-
-        cerr << "The vertexes are the same subgraph: " << same_component(u, v) << endl;
+        //cerr << "The vertexes are the same subgraph: " << same_component(u, v) << endl;
         double s = count_score(vertex_array);
         fprintf(stderr, "Internal score: %5.10f\n", s);
 
