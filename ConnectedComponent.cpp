@@ -508,7 +508,7 @@ bool same_component(Vertex *u, Vertex *v) {
 }
 
 
-int count_score(vx &vertex_array) {
+double count_score(vx &vertex_array) {
 
     int n_v = vertex_array.size();
     vi sum_array(n_v, 0);
@@ -522,25 +522,12 @@ int count_score(vx &vertex_array) {
     }
 
     vector<double> scores(n_v, 0.0);
-
-    //cerr << "Sums: " << endl;
-    //for(int i = 0; i < n_v; i++) {
-    //    fprintf(stderr, "%3d ", sum_array[i]);
-    //}
-    //cerr << endl;
-
-    //cerr << "Counts: " << endl;
-    for(int i = 0; i < n_v; i++) {
+    for(int i = 0; i < n_v; i++)
         scores[i] = (double)sum_array[i]*sqrt((double)count_array[i]);
-        //fprintf(stderr, "%3d ", count_array[i]);
-    }
-    //cerr << endl;
-
 
     double s = (*max_element(scores.begin(), scores.end()));
 
     return s;
-
 
 }
 
@@ -621,7 +608,7 @@ public:
 
         cerr << "The vertexes are the same subgraph: " << same_component(u, v) << endl;
         double s = count_score(vertex_array);
-        fprintf(stderr, "Internal score: %5.5f\n", s);
+        fprintf(stderr, "Internal score: %5.10f\n", s);
 
         vector<int> ret(S);
         for (int i = 0; i < S; ++i) {
