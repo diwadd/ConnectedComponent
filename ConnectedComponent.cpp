@@ -769,7 +769,7 @@ public:
         set_edges(pointer_vertex_matrix);
         
 
-        double T = 100.0;
+        double T = 1000.0;
         double alpha = 0.975;
         metropolis(T,
                    alpha,
