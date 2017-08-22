@@ -5,12 +5,14 @@
 #include <cmath>
 #include <algorithm>
 #include <random>
-#define FOR(i, N) for(int i = 0; i < N; i++)
+#include <chrono>
 
+//#define MEASURE_TIME
 #define NUMBER_OF_EDGES_PER_VERTEX 4
 
 const int i_shifts[NUMBER_OF_EDGES_PER_VERTEX] = {1, 0, -1,  0};
 const int j_shifts[NUMBER_OF_EDGES_PER_VERTEX] = {0, 1,  0, -1};
+
 #define DOWN_NEIGHBOUR  0  // Corresponds to shift [ 1,  0]
 #define RIGHT_NEIGHBOUR 1  // Corresponds to shift [ 0,  1]
 #define UP_NEIGHBOUR    2  // Corresponds to shift [-1,  0]
@@ -324,7 +326,7 @@ void set_edges(vvxp &pointer_vertex_matrix,
                 // above and below the current vertex.
                 int i_up = rc_index - 1;
                 int i_down = rc_index + 1;
-                if (i_up > 0 && pointer_vertex_matrix[i_up][j] != nullptr)
+                if (i_up >= 0 && pointer_vertex_matrix[i_up][j] != nullptr)
                     pointer_vertex_matrix[i_up][j]->m_de = pointer_vertex_matrix[rc_index][j];
 
                 if (i_down < S && pointer_vertex_matrix[i_down][j] != nullptr)
@@ -336,7 +338,7 @@ void set_edges(vvxp &pointer_vertex_matrix,
                 // edges of the neighbours.
                 int i_up = rc_index - 1;
                 int i_down = rc_index + 1;
-                if (i_up > 0 && pointer_vertex_matrix[i_up][j] != nullptr)
+                if (i_up >= 0 && pointer_vertex_matrix[i_up][j] != nullptr)
                     pointer_vertex_matrix[i_up][j]->m_de = nullptr;
 
                 if (i_down < S && pointer_vertex_matrix[i_down][j] != nullptr)
@@ -359,7 +361,7 @@ void set_edges(vvxp &pointer_vertex_matrix,
                 // on the left and right the current vertex.
                 int i_left = rc_index - 1;
                 int i_right = rc_index + 1;
-                if (i_left > 0 && pointer_vertex_matrix[j][i_left] != nullptr)
+                if (i_left >= 0 && pointer_vertex_matrix[j][i_left] != nullptr)
                     pointer_vertex_matrix[j][i_left]->m_re = pointer_vertex_matrix[j][rc_index];
 
                 if (i_right < S && pointer_vertex_matrix[j][i_right] != nullptr)
@@ -371,7 +373,7 @@ void set_edges(vvxp &pointer_vertex_matrix,
                 // edges of the neighbours.
                 int i_left = rc_index - 1;
                 int i_right = rc_index + 1;
-                if (i_left > 0 && pointer_vertex_matrix[j][i_left] != nullptr)
+                if (i_left >= 0 && pointer_vertex_matrix[j][i_left] != nullptr)
                     pointer_vertex_matrix[j][i_left]->m_re = nullptr;
 
                 if (i_right < S && pointer_vertex_matrix[j][i_right] != nullptr)
@@ -588,22 +590,48 @@ void metropolis(double &T,
     random_device rd;
     mt19937 gen(rd());
 
-    double min_cost = numeric_limits<double>::max();
+    connected_components(vertex_array);
+    double min_cost = -count_score(vertex_array);
 
     vi current_perm(S, 0);
-
     for(int i = 0; i < S; i++)
         current_perm[i] = i;
 
     uniform_int_distribution<> uni_int(0, S - 1);
     uniform_real_distribution<double> uni_real(0.0, 1.0);
 
-    while(T > 1.0) {
+    int step = 0;
+    while(T > 10.0) {
 
+        //cerr << "step: " << step << " min_cost: " << min_cost << endl;
         //cerr << "While beginning." << endl;
         //cerr << "Counting score" << endl;
+
+        #ifdef MEASURE_TIME
+        chrono::time_point<std::chrono::system_clock> start, end;
+        start = std::chrono::system_clock::now();
+        #endif
+
         connected_components(vertex_array);
+
+        #ifdef MEASURE_TIME
+        end = chrono::system_clock::now();
+        chrono::duration<double> elapsed_seconds = end - start;
+        cerr << "elapsed time (connected_components): " << elapsed_seconds.count() << " sec" << endl;
+        #endif
+
+        #ifdef MEASURE_TIME
+        start = std::chrono::system_clock::now();
+        #endif
+
         double cost_1 = -count_score(vertex_array);
+
+        #ifdef MEASURE_TIME
+        end = chrono::system_clock::now();
+        elapsed_seconds = end - start;
+        cerr << "elapsed time (cost): " << elapsed_seconds.count() << " sec" << endl;
+        #endif
+
         //cerr << "cost_1: " << cost_1 << endl;
         //cerr << "Score counted" << endl;
 
@@ -615,23 +643,59 @@ void metropolis(double &T,
         
         // Move pointer_vertex_matrix to new state.
         //cerr << "New state generated." << endl;
+
+        #ifdef MEASURE_TIME
+        start = std::chrono::system_clock::now();
+        #endif
+
         permute_pointer_vertex_matrix(pointer_vertex_matrix, pi, pj);
-        set_edges(pointer_vertex_matrix);
+
+        #ifdef MEASURE_TIME
+        end = chrono::system_clock::now();
+        elapsed_seconds = end - start;
+        cerr << "elapsed time (permute): " << elapsed_seconds.count() << " sec" << endl;
+        #endif
+
+        #ifdef MEASURE_TIME
+        start = std::chrono::system_clock::now();
+        #endif
+
+        set_edges(pointer_vertex_matrix, pi, pj);
+
+        #ifdef MEASURE_TIME
+        end = chrono::system_clock::now();
+        elapsed_seconds = end - start;
+        cerr << "elapsed time (set_edges): " << elapsed_seconds.count() << " sec" << endl;
+        #endif
+
+
         //cerr << "New state generated." << endl;
 
         connected_components(vertex_array);
         double cost_2 = -count_score(vertex_array);
         //cerr << "cost_2: " << cost_2 << endl;
 
-        // Accept new state
-        if (cost_2 > cost_1) {
+        //cerr << endl;
+
+        //cerr << "Before if" << endl;
+        //cerr << "pi: " << pi << " pj: " << pj << " current_perm: " << endl;
+        //print_vector(current_perm);
+
+        // Accept new state.
+        if (cost_2 < cost_1) {
             int t = current_perm[pi];
             current_perm[pi] = current_perm[pj];
             current_perm[pj] = t;
 
+            //cerr << "cost_2 < cost_1, accept" << endl;
+            //cerr << "pi: " << pi << " pj: " << pj << " current_perm: " << endl;
+            //print_vector(current_perm);
+
             if (min_cost > cost_2) {
                 min_cost = cost_2;
                 final_perm = current_perm;
+                //cerr << "cost_2 < cost_1, final perm update." << " final_perm: " << endl;
+                //print_vector(final_perm);
             }
 
         // Accept new state with probability exp( -(cost_2 - cost_1)/T ).
@@ -640,22 +704,39 @@ void metropolis(double &T,
             current_perm[pi] = current_perm[pj];
             current_perm[pj] = t;
 
+            //cerr << "Probability accept" << endl;
+            //cerr << "pi: " << pi << " pj: " << pj << " current_perm: " << endl;
+            //print_vector(current_perm);
+
             if (min_cost > cost_2) {
                 min_cost = cost_2;
                 final_perm = current_perm;
+                //cerr << "Probability accept, final perm update." << " final_perm: " << endl;
+                //print_vector(final_perm);
             }
         // Reject new state.
         } else {
+
+            //cerr << "New state rejected." << endl;
+            //cerr << "pi: " << pi << " pj: " << pj << " current_perm: " << endl;
+            //print_vector(current_perm);
             permute_pointer_vertex_matrix(pointer_vertex_matrix, pj, pi);
-            set_edges(pointer_vertex_matrix);
+            set_edges(pointer_vertex_matrix, pj, pi);
         }
 
-        T = T*alpha;
+        //cerr << "After if" << endl;
+        //cerr << "pi: " << pi << " pj: " << pj << " current_perm: " << endl;
+        //print_vector(current_perm);
 
+
+        cerr << "T: " << T << " e: " << exp( -(cost_2 - cost_1)/T ) << " cost_1: " << cost_1 << " cost_2: " << cost_2 << " min_cost: " << min_cost << endl;
+
+        T = T*alpha;
+        step++;
 
     }
 
-
+    //print_vector(final_perm);
 }
 
 
@@ -663,120 +744,44 @@ class ConnectedComponent {
 public:
     vector<int> permute(vector<int> matrix_array_form) {
 
-        int S = (int)sqrt(matrix_array_form.size());
-        vi final_perm(S, 0);
+        chrono::time_point<std::chrono::system_clock> start, end;
 
+        start = std::chrono::system_clock::now();
+        int S = (int)sqrt(matrix_array_form.size());
+
+        // Vector to hold final solution.
+        vi final_perm(S, 0);
         for(int i = 0; i < S; i++)
             final_perm[i] = i;
 
-        //print_vector(final_perm);
 
-        // S x S matrix
         vvi matrix(S, vi(S, 0));
         array_form_to_matrix(matrix_array_form,
                              matrix,
                              S);
 
-        cerr << "Original matrix: " << endl;
-        //print_matrix(matrix);
 
         vx vertex_array;
         vvxp pointer_vertex_matrix(S, vxp(S, nullptr));
-        //vvxp pointer_vertex_matrix_support(S, vxp(S, nullptr));
         initialise_vertex_array(matrix,
                                 vertex_array,
                                 pointer_vertex_matrix);
-        //initialise_vertex_array(matrix,
-        //                        vertex_array,
-        //                        pointer_vertex_matrix_support);
         set_edges(pointer_vertex_matrix);
-        //set_edges(pointer_vertex_matrix_support);
-
-        cerr << "pointer_vertex_matrix" << endl;
-        //print_matrix(pointer_vertex_matrix);
-
-        //cerr << "pointer_vertex_matrix_support" << endl;
-        //print_matrix(pointer_vertex_matrix_support);
-
-        int iv = 1;
-        int jv = 5;
-        print_vertex_information(pointer_vertex_matrix[iv][jv]);
-        cerr << endl;
-
-        vi perm = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-        //vvxp pointer_vertex_matrix_permuted(S, vxp(S, nullptr));
-        //permute_pointer_vertex_matrix(pointer_vertex_matrix, 
-        //                              pointer_vertex_matrix_permuted, 
-        //                              perm);
-        //set_edges(pointer_vertex_matrix_permuted);
-
-        //cerr << "Permutation (pointer matrix): " << endl;        
-        //print_matrix(pointer_vertex_matrix_permuted);
-        //print_vertex_information(pointer_vertex_matrix_permuted[iv][jv]);
-        //cerr << endl;
-
-
-        cerr << "Small permutation (pointer matrix): " << endl;
-        //int pi = 0;
-        //int pj = 1;
-        //permute_pointer_vertex_matrix(pointer_vertex_matrix, pi, pj);
-        //set_edges(pointer_vertex_matrix, pi, pj);
-        //pi = 5;
-        //pj = 8;
-        //permute_pointer_vertex_matrix(pointer_vertex_matrix, pi, pj);
-        //set_edges(pointer_vertex_matrix, pi, pj);
-        //set_edges(pointer_vertex_matrix);
-
-        //print_matrix(pointer_vertex_matrix);
-
-        //iv = 1; jv = 1;
-        //print_vertex_information(pointer_vertex_matrix[iv][jv]);
-
-        //iv = 1; jv = 4;
-        //print_vertex_information(pointer_vertex_matrix[iv][jv]);
-
-        //iv = 3; jv = 6;
-        //print_vertex_information(pointer_vertex_matrix[iv][jv]);
-
-        //iv = 1; jv = 5;
-        //print_vertex_information(pointer_vertex_matrix[iv][jv]);
-
-        //int n = 10;
-        //apply_n_random_permutations(n, pointer_vertex_matrix, final_perm);
-        //print_vector(final_perm);
-
-        //cerr << "pointer_vertex_matrix after apply_n_random_permutations" << endl;
-        //print_matrix(pointer_vertex_matrix);
-
-        //cerr << "pointer_vertex_matrix_support" << endl;
-        //print_matrix(pointer_vertex_matrix_support);
-
-        //vvxp pointer_vertex_matrix_permuted(S, vxp(S, nullptr));
-        //permute_pointer_vertex_matrix(pointer_vertex_matrix_support, 
-        //                              pointer_vertex_matrix_permuted, 
-        //                              final_perm);
-
-        //cerr << "pointer_vertex_matrix_permuted" << endl;
-        //print_matrix(pointer_vertex_matrix_permuted);
         
 
         double T = 100.0;
-        double alpha = 0.9;
+        double alpha = 0.975;
         metropolis(T,
                    alpha,
                    vertex_array,
                    pointer_vertex_matrix,
                    final_perm);
 
+        end = chrono::system_clock::now();
+        chrono::duration<double> elapsed_seconds = end - start;
+        cerr << "elapsed time: " << elapsed_seconds.count() << " sec" << endl;
 
-        //cerr << &vertex_array[0] << endl;
-        //cerr << vertex_array[0].m_p << endl;
-        //connected_components(vertex_array);
-        //cerr << vertex_array[0].m_p << endl;
-
-        //Vertex* u = pointer_vertex_matrix[7][0];
-        //Vertex* v = pointer_vertex_matrix[9][0];
-
+        /*
         vvxp pointer_vertex_matrix_max_score(S, vxp(S, nullptr));
         initialise_vertex_array(matrix,
                                 vertex_array,
@@ -800,12 +805,13 @@ public:
         //cerr << "The vertexes are the same subgraph: " << same_component(u, v) << endl;
         double s = count_score(vertex_array);
         fprintf(stderr, "Internal score: %5.10f\n", s);
+        */
 
-        vector<int> ret(S);
-        for (int i = 0; i < S; ++i) {
-            ret[i] = S - 1 - i;
-        }
-        return ret;
+        //vector<int> ret(S);
+        //for (int i = 0; i < S; ++i) {
+        //    ret[i] = S - 1 - i;
+        //}
+        return final_perm;
     }
 };
 // -------8<------- end of solution submitted to the website -------8<-------
