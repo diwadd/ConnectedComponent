@@ -1,3 +1,4 @@
+#include <utility>
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -577,12 +578,30 @@ void apply_n_random_permutations(int &n,
 
 }
 
+pair<int, int> count_norm(vvi &matrix) {
+
+    int abs_sum = 0;
+    int num_ele = 0;    
+    int S = matrix.size();
+    for(int i = 0; i < S; i++) {
+        for(int j = 0; j < S; j++) {
+            if(matrix[i][j] != 0) {
+                abs_sum = abs_sum + abs(matrix[i][j]);
+                num_ele++;
+            }
+        }
+    }    
+
+    return make_pair(abs_sum, num_ele);
+}
+
 
 void metropolis(double &T,
                 double &alpha,
                 vx &vertex_array,
                 vvxp &pointer_vertex_matrix,
-                vi &final_perm) {
+                vi &final_perm,
+                double &norm_const) {
 
     cerr << "Running Monte Carlo with Metropolis..." << endl;
 
@@ -601,7 +620,7 @@ void metropolis(double &T,
     uniform_real_distribution<double> uni_real(0.0, 1.0);
 
     int step = 0;
-    while(T > 10.0) {
+    while(T > 1.0) {
 
         //cerr << "step: " << step << " min_cost: " << min_cost << endl;
         //cerr << "While beginning." << endl;
@@ -699,7 +718,7 @@ void metropolis(double &T,
             }
 
         // Accept new state with probability exp( -(cost_2 - cost_1)/T ).
-        } else if ( uni_real(gen) < exp( -(cost_2 - cost_1)/T ) ) {
+        } else if ( uni_real(gen) < exp( -(cost_2/norm_const - cost_1/norm_const)/T ) ) {
             int t = current_perm[pi];
             current_perm[pi] = current_perm[pj];
             current_perm[pj] = t;
@@ -729,7 +748,7 @@ void metropolis(double &T,
         //print_vector(current_perm);
 
 
-        cerr << "T: " << T << " e: " << exp( -(cost_2 - cost_1)/T ) << " cost_1: " << cost_1 << " cost_2: " << cost_2 << " min_cost: " << min_cost << endl;
+        cerr << "T: " << T << " e: " << exp( -(cost_2/norm_const - cost_1/norm_const)/T ) << " cost_1: " << cost_1/norm_const << " cost_2: " << cost_2/norm_const << " min_cost: " << min_cost << endl;
 
         T = T*alpha;
         step++;
@@ -760,6 +779,14 @@ public:
                              matrix,
                              S);
 
+        pair<int, int> elements_pair = count_norm(matrix);
+        cerr << "elements_pair.first: " << elements_pair.first << " elements_pair.second: " << elements_pair.second << endl;
+
+        int abs_sum = elements_pair.first;
+        int num_ele = elements_pair.second;
+
+        double norm_const = (double)abs_sum*sqrt((double)num_ele);
+        cerr << "norm_const: " << norm_const << endl;
 
         vx vertex_array;
         vvxp pointer_vertex_matrix(S, vxp(S, nullptr));
@@ -769,13 +796,14 @@ public:
         set_edges(pointer_vertex_matrix);
         
 
-        double T = 1000.0;
+        double T = 10.0;
         double alpha = 0.975;
         metropolis(T,
                    alpha,
                    vertex_array,
                    pointer_vertex_matrix,
-                   final_perm);
+                   final_perm,
+                   norm_const);
 
         end = chrono::system_clock::now();
         chrono::duration<double> elapsed_seconds = end - start;
